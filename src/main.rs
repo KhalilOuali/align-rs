@@ -4,16 +4,10 @@ use std::{
     process::exit,
 };
 
-use terminal_size::{terminal_size, Width};
-
-enum Where {
-    Left,
-    Center,
-    Right,
-}
+use align::{Align, Bias, Where};
 
 fn get_width() -> usize {
-    if let Some((Width(w), _)) = terminal_size() {
+    if let Some((w, _)) = term_size::dimensions() {
         w.into()
     } else {
         eprintln!("Unable to get terminal width.");
@@ -33,7 +27,7 @@ fn get_arg(args: &mut Args) -> Where {
             }
         }
     } else {
-        Where::Center
+        Where::Left
     }
 }
 
@@ -51,62 +45,11 @@ fn get_params() -> (Where, Where) {
     (align, justify)
 }
 
-/// Returns (space, lines)
-/// where lines is a vector contraining the lines of text
-/// and space is the amount of space left on the terminal line
-fn get_text(width: usize, justify: Where) -> (Vec<String>, usize) {
-    let mut lines = Vec::new();
-    let mut max_len: usize = 0;
-
-    // unwrap lines and caluclate max line length
-    for (i, line) in stdin().lines().enumerate() {
-        match line {
-            Ok(line) => {
-                let len = line.len();
-                if len > width {
-                    eprintln!("Line {i} is longer than terminal width.");
-                    exit(5);
-                }
-                if len > max_len {
-                    max_len = len;
-                }
-                lines.push(line);
-            }
-            Err(error) => {
-                eprintln!("Unable to read line {i}: {error}.");
-                exit(4);
-            }
-        }
-    }
-
-    // add spaces to each line to justify them and make them all same length
-    lines.iter_mut().for_each(|line| {
-        let space = max_len - line.len();
-
-        let before = match justify {
-            Where::Left => 0,
-            Where::Center => space / 2,
-            Where::Right => space,
-        };
-        let after = space - before;
-
-        (*line).insert_str(0, " ".repeat(before).as_str());
-        (*line).push_str(" ".repeat(after).as_str());
-    });
-
-    (lines, width - max_len)
-}
-
-fn print_text(lines: Vec<String>, space: usize, align: Where) {
-    let space = match align {
-        Where::Left => 0,
-        Where::Center => space / 2,
-        Where::Right => space,
-    };
-
-    lines
-        .iter()
-        .for_each(|line| println!("{}{}", " ".repeat(space), line));
+fn get_text() -> Vec<String> {
+    stdin()
+        .lines()
+        .map(|line| line.expect("stdin error: "))
+        .collect()
 }
 
 fn main() {
@@ -115,8 +58,19 @@ fn main() {
     // todo: add a trim option
     // todo: add a center bias option
     let (align, justify) = get_params();
-    // todo: break apart read and justify
-    let (lines, space) = get_text(width, justify);
-    // todo: break apart print and aling
-    print_text(lines, space, align);
+    let mut lines = get_text();
+
+    // justify
+    if let Err(e) = lines.align_text(justify, None, false, Bias::Left, true) {
+        eprintln!("Error: {e:?}");
+        exit(1);
+    }
+
+    // align
+    if let Err(e) = lines.align_text(align, Some(width), false, Bias::Left, true) {
+        eprintln!("Error: {e:?}");
+        exit(1);
+    }
+
+    lines.iter().for_each(|line| println!("{line}"));
 }
