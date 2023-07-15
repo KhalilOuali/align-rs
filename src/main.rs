@@ -9,12 +9,37 @@ use clap::Parser;
 #[command(about = "Aligns and justifies text within the terminal (or a specified width).")]
 struct Args {
     /// Where to align the text.
-    #[arg(value_enum, short, long, default_value_t, ignore_case = true)]
+    #[arg(
+        value_enum,
+        short,
+        long,
+        default_value_t,
+        ignore_case = true,
+        conflicts_with = "align_justify"
+    )]
     align: Where,
 
     /// Where to justify the text.
-    #[arg(value_enum, short, long, default_value_t, ignore_case = true)]
+    #[arg(
+        value_enum,
+        short,
+        long,
+        default_value_t,
+        ignore_case = true,
+        conflicts_with = "align_justify"
+    )]
     justify: Where,
+
+    /// Shorthand for specifiying both.
+    #[arg(
+        value_enum,
+        long,
+        long = "aj",
+        ignore_case = true,
+        conflicts_with = "align",
+        conflicts_with = "justify"
+    )]
+    align_justify: Option<Where>,
 
     /// Whether to trim the spaces around the lines before justifying.
     #[arg(short, long, action)]
@@ -51,8 +76,12 @@ fn get_text() -> Vec<String> {
 
 fn main() {
     let mut args = Args::parse();
-    if args.align != Where::Left {
-        args.width.get_or_insert(get_terimnal_width());
+    if let Some(wh) = args.align_justify {
+        args.align = wh.clone();
+        args.justify = wh.clone();
+    }
+    if args.align != Where::Left && args.width.is_none() {
+        _ = args.width.insert(get_terimnal_width());
     }
 
     let mut lines = get_text();
@@ -77,13 +106,8 @@ fn main() {
         }
 
         // align
-        if let Err(e) = lines.align_text(
-            args.align,
-            args.width,
-            false,
-            args.bias,
-            args.keep_spaces,
-        ) {
+        if let Err(e) = lines.align_text(args.align, args.width, false, args.bias, args.keep_spaces)
+        {
             eprintln!("Error: {e:?}");
             exit(1);
         }
