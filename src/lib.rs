@@ -1,14 +1,84 @@
-#[derive(Debug)]
+use clap::ValueEnum;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Where {
     Left,
     Center,
     Right,
 }
 
+impl Default for Where {
+    fn default() -> Self {
+        Where::Left
+    }
+}
+
+impl ValueEnum for Where {
+    fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
+        let input = if ignore_case {
+            input.to_lowercase()
+        } else {
+            input.to_string()
+        };
+
+        match input.as_str() {
+            "l" | "left" => Ok(Where::Left),
+            "c" | "center" => Ok(Where::Center),
+            "r" | "right" => Ok(Where::Right),
+            _ => Err("invalid Where value".to_string()),
+        }
+    }
+
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Where::Left, Where::Center, Where::Right]
+    }
+
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+        match self {
+            Where::Left => Some(clap::builder::PossibleValue::new("left").alias("l")),
+            Where::Center => Some(clap::builder::PossibleValue::new("center").alias("c")),
+            Where::Right => Some(clap::builder::PossibleValue::new("right").alias("r")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Bias {
     Left,
     Right,
+}
+
+impl Default for Bias {
+    fn default() -> Self {
+        Bias::Left
+    }
+}
+
+impl ValueEnum for Bias {
+    fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
+        let input = if ignore_case {
+            input.to_lowercase()
+        } else {
+            input.to_string()
+        };
+
+        match input.as_str() {
+            "l" | "left" => Ok(Bias::Left),
+            "r" | "right" => Ok(Bias::Right),
+            _ => Err("invalid Bias value".to_string()),
+        }
+    }
+
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Bias::Left, Bias::Right]
+    }
+
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+        match self {
+            Bias::Left => Some(clap::builder::PossibleValue::new("left").alias("l")),
+            Bias::Right => Some(clap::builder::PossibleValue::new("right").alias("r")),
+        }
+    }
 }
 
 impl From<Bias> for usize {
@@ -101,7 +171,8 @@ impl Align for Vec<String> {
         }
 
         if trim {
-            lines.iter_mut()
+            lines
+                .iter_mut()
                 .for_each(|line| *line = line.trim().to_string());
         }
 

@@ -1,12 +1,39 @@
-use std::{
-    env::{args, Args},
-    io::stdin,
-    process::exit,
-};
+use std::{io::stdin, process::exit};
 
 use align::{Align, Bias, Where};
 
-fn get_width() -> usize {
+use clap::Parser;
+
+#[derive(Parser, Debug)] // requires `derive` feature
+#[command(author, version, long_about = None)]
+#[command(about = "Aligns and justifies text within the terminal (or a specified width).")]
+struct Args {
+    /// Where to align the text.
+    #[arg(value_enum, short, long, default_value_t, ignore_case=true)]
+    align: Where,
+
+    /// Where to justify the text.
+    #[arg(value_enum, short, long, default_value_t, ignore_case=true)]
+    justify: Where,
+
+    /// Whether to trim the spaces around the lines before justifying.
+    #[arg(short, long, action)]
+    trim: bool,
+
+    /// Width to align the text within. If unspecified, takes terminal width.
+    #[arg(short, long, default_value_t = 0)]
+    width: usize,
+
+    /// Whether to keep the spaces on the right.
+    #[arg(short, long, action)]
+    keep_spaces: bool,
+
+    /// Which side to bias towards if line can't be perfectly centered.
+    #[arg(value_enum, short, long, default_value_t, ignore_case=true)]
+    bias: Bias,
+}
+
+fn get_terimnal_width() -> usize {
     if let Some((w, _)) = term_size::dimensions() {
         w.into()
     } else {
@@ -15,61 +42,51 @@ fn get_width() -> usize {
     }
 }
 
-fn get_arg(args: &mut Args) -> Where {
-    if let Some(arg) = args.next() {
-        match arg.as_str() {
-            "left" | "l" => Where::Left,
-            "center" | "c" => Where::Center,
-            "right" | "r" => Where::Right,
-            _ => {
-                eprintln!("Invalid arugment: {arg}.");
-                exit(2);
-            }
-        }
-    } else {
-        Where::Left
-    }
-}
-
-/// Reads command line arguments and return the align and justify parameters
-fn get_params() -> (Where, Where) {
-    let mut args = args();
-    if args.len() > 3 {
-        eprintln!("Invalid number of arguments.");
-        exit(1);
-    }
-    args.next();
-
-    let align = get_arg(&mut args);
-    let justify = get_arg(&mut args);
-    (align, justify)
-}
-
 fn get_text() -> Vec<String> {
     stdin()
         .lines()
-        .map(|line| line.expect("stdin error: "))
+        .map(|line| line.expect("read error: "))
         .collect()
 }
 
 fn main() {
-    let width = get_width();
-    // todo: use an argument pasring library
-    // todo: add a trim option
-    // todo: add a center bias option
-    let (align, justify) = get_params();
-    let mut lines = get_text();
-
-    // justify
-    if let Err(e) = lines.align_text(justify, None, false, Bias::Left, true) {
-        eprintln!("Error: {e:?}");
-        exit(1);
+    let mut args = Args::parse();
+    if args.width == 0 {
+        args.width = get_terimnal_width();
     }
 
-    // align
-    if let Err(e) = lines.align_text(align, Some(width), false, Bias::Left, true) {
-        eprintln!("Error: {e:?}");
-        exit(1);
+    let mut lines = get_text();
+
+    if args.align == Where::Center && args.justify == Where::Center {
+        // center completely
+        if let Err(e) = lines.align_text(
+            Where::Center,
+            Some(args.width),
+            args.trim,
+            args.bias,
+            args.keep_spaces,
+        ) {
+            eprintln!("Error: {e:?}");
+            exit(1);
+        }
+    } else {
+        // justify
+        if let Err(e) = lines.align_text(args.justify, None, args.trim, args.bias, true) {
+            eprintln!("Error: {e:?}");
+            exit(1);
+        }
+
+        // align
+        if let Err(e) = lines.align_text(
+            args.align,
+            Some(args.width),
+            false,
+            args.bias,
+            args.keep_spaces,
+        ) {
+            eprintln!("Error: {e:?}");
+            exit(1);
+        }
     }
 
     lines.iter().for_each(|line| println!("{line}"));
