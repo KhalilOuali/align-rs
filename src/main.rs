@@ -9,11 +9,11 @@ use clap::Parser;
 #[command(about = "Aligns and justifies text within the terminal (or a specified width).")]
 struct Args {
     /// Where to align the text.
-    #[arg(value_enum, short, long, default_value_t, ignore_case=true)]
+    #[arg(value_enum, short, long, default_value_t, ignore_case = true)]
     align: Where,
 
     /// Where to justify the text.
-    #[arg(value_enum, short, long, default_value_t, ignore_case=true)]
+    #[arg(value_enum, short, long, default_value_t, ignore_case = true)]
     justify: Where,
 
     /// Whether to trim the spaces around the lines before justifying.
@@ -21,15 +21,15 @@ struct Args {
     trim: bool,
 
     /// Width to align the text within. If unspecified, takes terminal width.
-    #[arg(short, long, default_value_t = 0)]
-    width: usize,
+    #[arg(short, long)]
+    width: Option<usize>,
 
     /// Whether to keep the spaces on the right.
     #[arg(short, long, action)]
     keep_spaces: bool,
 
     /// Which side to bias towards if line can't be perfectly centered.
-    #[arg(value_enum, short, long, default_value_t, ignore_case=true)]
+    #[arg(value_enum, short, long, default_value_t, ignore_case = true)]
     bias: Bias,
 }
 
@@ -51,8 +51,8 @@ fn get_text() -> Vec<String> {
 
 fn main() {
     let mut args = Args::parse();
-    if args.width == 0 {
-        args.width = get_terimnal_width();
+    if args.align != Where::Left {
+        args.width.get_or_insert(get_terimnal_width());
     }
 
     let mut lines = get_text();
@@ -61,7 +61,7 @@ fn main() {
         // center completely
         if let Err(e) = lines.align_text(
             Where::Center,
-            Some(args.width),
+            Some(args.width.unwrap()),
             args.trim,
             args.bias,
             args.keep_spaces,
@@ -79,7 +79,7 @@ fn main() {
         // align
         if let Err(e) = lines.align_text(
             args.align,
-            Some(args.width),
+            args.width,
             false,
             args.bias,
             args.keep_spaces,
