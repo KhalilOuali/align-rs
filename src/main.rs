@@ -4,7 +4,7 @@ use align::{Align, Bias, Where};
 
 use clap::Parser;
 
-#[derive(Parser, Debug)] // requires `derive` feature
+#[derive(Parser, Debug)]
 #[command(author, version, long_about = None)]
 #[command(about = "Aligns and justifies text within the terminal (or a specified width).")]
 struct Args {
@@ -45,6 +45,7 @@ struct Args {
     #[arg(short, long, action)]
     trim: bool,
 
+    // todo: width=0 takes text width
     /// Width to align the text within. If unspecified, takes terminal width.
     #[arg(short, long)]
     width: Option<usize>,
@@ -56,6 +57,7 @@ struct Args {
     /// Which side to bias towards if line can't be perfectly centered.
     #[arg(value_enum, short, long, default_value_t, ignore_case = true)]
     bias: Bias,
+    // todo: add wrapping option
 }
 
 fn get_terimnal_width() -> usize {
@@ -81,6 +83,7 @@ fn main() {
         args.justify = wh.clone();
     }
     if args.align != Where::Left && args.width.is_none() {
+        // todo: come back after width=0 option added
         _ = args.width.insert(get_terimnal_width());
     }
 
@@ -104,6 +107,7 @@ fn main() {
             eprintln!("Error: {e:?}");
             exit(1);
         }
+        // todo: if !keep_spaces, remove spaces introduced by justify
 
         // align
         if let Err(e) = lines.align_text(args.align, args.width, false, args.bias, args.keep_spaces)
