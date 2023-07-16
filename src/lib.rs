@@ -91,29 +91,20 @@ impl From<Bias> for usize {
 }
 
 /// Errors returned by [`align_text()`]:
-/// * [`Error::EmptyVector`]: `lines` is an empty vector.
-/// * [`Error::InsufficientWidth`]: the `lines` can't fit in the given `width`.
+/// * [`Error::InsufficientColumns`]: the `lines` can't fit in the given number of `columns`.
 /// * [`Error::UnknownError`]: an unexpected error that shouldn't have occured.
 ///
-/// # Examples
-/// * Passing an empty vector:
-/// ```
-/// use align::{Align, Where, Bias, Error};
-/// let mut lines = Vec::new();
-/// let result = lines.align_text(Where::Center, None, true, Bias::Right, true);
-/// assert_eq!(result, Err(Error::EmptyVector));
-/// ```
-/// * Passing an insufficient width:
+/// # Example
+/// * Passing an insufficient number of columns:
 /// ```
 /// use align::{Align, Where, Bias, Error};
 /// let mut lines = vec!["0123456789".to_string()];
-/// let result = lines.align_text(Where::Center, Some(3), true, Bias::Right, true);
-/// assert_eq!(result, Err(Error::InsufficientWidth));
+/// let result = lines.align_text(Where::Center, Some((3, false)), true, Bias::Right, true);
+/// assert_eq!(result, Err(Error::InsufficientColumns));
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
-    EmptyVector,
-    InsufficientWidth,
+    InsufficientColumns,
     UnknownError(&'static str),
 }
 
@@ -124,7 +115,7 @@ pub trait Align {
     fn align_text(
         &mut self,
         align: Where,
-        width: Option<usize>,
+        columns: Option<(usize, bool)>,
         trim: bool,
         bias: Bias,
         keep_spaces: bool,
@@ -132,14 +123,20 @@ pub trait Align {
 }
 
 impl Align for Vec<String> {
-    /// Aligns each line (String) of text within `width` columns by inserting spaces to its left and right.
+    /// Aligns each line of text within a number of columns by inserting spaces to its left and right.
     /// See [`Error`] for potential errors returned.
     /// # Params
     /// * `align`: Where to align the lines.
-    /// * `width`: Final width to align in. If none, defaults to maximum line length.
+    /// * `columns`: can be
+    ///   * `Some(num, wrap)`: Number of columns and whether to wrap lines which are too long.
+    ///   * `None`: Use text's width as number of columns (maximum line length).
     /// * `trim`: Whether to trim white-spaces around the lines before aligment.
     /// * `bias`: Which side to bias towards if line can't be perfectly centered.
     /// * `keep_spaces`: Whether to keep the spaces on the right.
+    ///
+    /// # Note
+    /// This method is designed for use with a vector of single-line strings.
+    /// The result may look weird if you have newlines in you text.
     ///
     /// # Examples
     /// ```
@@ -148,27 +145,27 @@ impl Align for Vec<String> {
     /// let mut lines = vec![
     ///     "Hello           ".to_string(),
     ///     "            World!".to_string(),
-    ///     "   This should justify center     ".to_string(),
+    ///     "   This should center-align     ".to_string(),
     /// ];
-    /// lines.align_text(Where::Center, Some(30), true, Bias::Right, true).unwrap();
+    /// lines.align_text(Where::Center, Some((30, false)), true, Bias::Right, true).unwrap();
     ///
     /// assert_eq!(lines[0], "             Hello            ");
     /// assert_eq!(lines[1], "            World!            ");
-    /// assert_eq!(lines[2], "  This should justify center  ");
+    /// assert_eq!(lines[2], "   This should center-align   ");
     /// ```
     fn align_text(
         &mut self,
         align: Where,
-        width: Option<usize>,
+        columns: Option<(usize, bool)>,
         trim: bool,
         bias: Bias,
         keep_spaces: bool,
     ) -> Result<(), Error> {
-        let mut lines = self.clone();
-
-        if lines.len() == 0 {
-            return Err(Error::EmptyVector);
+        if self.is_empty() {
+            return Ok(());
         }
+
+        let mut lines = self.clone();
 
         if trim {
             lines
@@ -182,15 +179,33 @@ impl Align for Vec<String> {
             .max()
             .ok_or(Error::UnknownError("couldn't caluclate text_width"))?;
 
-        let width = match width {
-            Some(w) if w < text_width => return Err(Error::InsufficientWidth),
-            Some(w) => w,
+        let num_cols = match columns {
             None => text_width,
+            Some((num, wrap)) if num < text_width => {
+                if !wrap {
+                    return Err(Error::InsufficientColumns);
+                }
+
+                // if wrap, split strings into substrings of length num
+                lines = lines
+                    .iter()
+                    .flat_map(|line| {
+                        line.chars()
+                            .collect::<Vec<char>>()
+                            .chunks(num)
+                            .map(|line_chars| line_chars.iter().collect::<String>())
+                            .collect::<Vec<String>>()
+                    })
+                    .collect();
+
+                num
+            }
+            Some((num, _)) => num,
         };
 
         // align by adding spaces before and after
         for line in lines.iter_mut() {
-            let space = width - line.len();
+            let space = num_cols - line.len();
 
             let before = match align {
                 Where::Left => 0,
@@ -207,6 +222,57 @@ impl Align for Vec<String> {
         }
 
         *self = lines;
+        Ok(())
+    }
+}
+
+impl Align for String {
+    /// Aligns each line of text within a number of columns by inserting spaces to its left and right.
+    /// See [`Error`] for potential errors returned.
+    /// # Params
+    /// * `align`: Where to align the lines.
+    /// * `columns`: can be
+    ///   * `Some(num, wrap)`: Number of columns and whether to wrap lines which are too long.
+    ///   * `None`: Use text's width as number of columns (maximum line length).
+    /// * `trim`: Whether to trim white-spaces around the lines before aligment.
+    /// * `bias`: Which side to bias towards if line can't be perfectly centered.
+    /// * `keep_spaces`: Whether to keep the spaces on the right.
+    ///
+    /// # Note
+    /// This method replaces all line endings with `\n`.
+    ///
+    /// # Examples
+    /// ```
+    /// use align::{Align, Where, Bias};
+    ///
+    /// let mut text = [
+    ///     "Hello           ",
+    ///     "            World!",
+    ///     "   This should center-align     ",
+    /// ].join("\n");
+    ///
+    /// text.align_text(Where::Center, Some((30, false)), true, Bias::Right, true)
+    ///     .unwrap();
+    ///
+    /// assert_eq!(
+    ///     text, [
+    ///         "             Hello            ",
+    ///         "            World!            ",
+    ///         "   This should center-align   "
+    ///     ].join("\n")
+    /// );
+    /// ```
+    fn align_text(
+        &mut self,
+        align: Where,
+        columns: Option<(usize, bool)>,
+        trim: bool,
+        bias: Bias,
+        keep_spaces: bool,
+    ) -> Result<(), Error> {
+        let mut lines: Vec<String> = self.lines().map(|line| line.to_string()).collect();
+        lines.align_text(align, columns, trim, bias, keep_spaces)?;
+        *self = lines.join("\n");
         Ok(())
     }
 }

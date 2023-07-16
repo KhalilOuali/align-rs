@@ -1,12 +1,14 @@
-use std::{io::stdin, process::exit};
+use std::{io::stdin, process::ExitCode};
 
-use align::{Align, Bias, Where};
+use align::*;
 
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[command(author, version, long_about = None)]
-#[command(about = "Aligns and justifies text within the terminal (or a specified width).")]
+#[command(author, version, long_about = "None")]
+#[command(
+    about = "Aligns and justifies text within the terminal (or a specified number of columns)."
+)]
 struct Args {
     /// Where to align the text.
     #[arg(
@@ -15,7 +17,7 @@ struct Args {
         long,
         default_value_t,
         ignore_case = true,
-        conflicts_with = "align_justify"
+        conflicts_with = "both"
     )]
     align: Where,
 
@@ -26,7 +28,7 @@ struct Args {
         long,
         default_value_t,
         ignore_case = true,
-        conflicts_with = "align_justify"
+        conflicts_with = "both"
     )]
     justify: Where,
 
@@ -39,83 +41,93 @@ struct Args {
         conflicts_with = "align",
         conflicts_with = "justify"
     )]
-    align_justify: Option<Where>,
+    both: Option<Where>,
 
-    /// Whether to trim the spaces around the lines before justifying.
+    /// Number of columns. Takes text's width if 0, terminal's width if unspecified.
+    #[arg(short, long)]
+    columns: Option<usize>,
+
+    /// Wrap the lines of text to fit in the number of columns.
+    #[arg(short, long, action)]
+    wrap: bool,
+
+    /// Trim the spaces around the lines before justifying.
     #[arg(short, long, action)]
     trim: bool,
 
-    // todo: width=0 takes text width
-    /// Width to align the text within. If unspecified, takes terminal width.
-    #[arg(short, long)]
-    width: Option<usize>,
-
-    /// Whether to keep the spaces on the right.
+    /// Keep the spaces on the right in output.
     #[arg(short, long, action)]
-    keep_spaces: bool,
+    keep: bool,
 
-    /// Which side to bias towards if line can't be perfectly centered.
+    /// Offset if line can't be centered perfectly
     #[arg(value_enum, short, long, default_value_t, ignore_case = true)]
     bias: Bias,
-    // todo: add wrapping option
 }
 
-fn get_terimnal_width() -> usize {
-    if let Some((w, _)) = term_size::dimensions() {
-        w.into()
-    } else {
-        eprintln!("Unable to get terminal width.");
-        exit(3);
-    }
+fn get_terimnal_width() -> Option<usize> {
+    term_size::dimensions().map(|(width, _height)| width)
 }
 
 fn get_text() -> Vec<String> {
     stdin()
         .lines()
-        .map(|line| line.expect("read error: "))
+        .map(|line| line.expect("Read error: "))
         .collect()
 }
 
-fn main() {
+fn main() -> ExitCode {
     let mut args = Args::parse();
-    if let Some(wh) = args.align_justify {
+    if let Some(wh) = args.both {
         args.align = wh.clone();
         args.justify = wh.clone();
     }
-    if args.align != Where::Left && args.width.is_none() {
-        // todo: come back after width=0 option added
-        _ = args.width.insert(get_terimnal_width());
-    }
+
+    // deduce final number of columns depending on args
+    let cols_wrap = match args.columns {
+        None => match get_terimnal_width() {
+            Some(term_width) => Some((term_width, args.wrap)),
+            None => {
+                eprintln!("Error: couldn't get terminal width.");
+                return ExitCode::FAILURE;
+            }
+        },
+        Some(0) => None,
+        Some(c) => Some((c, args.wrap)),
+    };
 
     let mut lines = get_text();
 
     if args.align == Where::Center && args.justify == Where::Center {
         // center completely
-        if let Err(e) = lines.align_text(
-            Where::Center,
-            Some(args.width.unwrap()),
-            args.trim,
-            args.bias,
-            args.keep_spaces,
-        ) {
-            eprintln!("Error: {e:?}");
-            exit(1);
+        if let Err(Error::InsufficientColumns) =
+            lines.align_text(Where::Center, cols_wrap, args.trim, args.bias, args.keep)
+        {
+            eprintln!("Error: Insufficient number of columns.");
+            return ExitCode::FAILURE;
         }
     } else {
         // justify
-        if let Err(e) = lines.align_text(args.justify, None, args.trim, args.bias, true) {
-            eprintln!("Error: {e:?}");
-            exit(1);
-        }
-        // todo: if !keep_spaces, remove spaces introduced by justify
+        lines
+            .align_text(args.justify, None, args.trim, args.bias, true)
+            .unwrap();
 
         // align
-        if let Err(e) = lines.align_text(args.align, args.width, false, args.bias, args.keep_spaces)
+        if let Err(Error::InsufficientColumns) =
+            lines.align_text(args.align, cols_wrap, false, args.bias, args.keep)
         {
-            eprintln!("Error: {e:?}");
-            exit(1);
+            eprintln!("Error: Insufficient number of columns.");
+            return ExitCode::FAILURE;
+        }
+
+        if !args.keep {
+            // remove spaces introduced by justify
+            lines
+                .iter_mut()
+                .for_each(|line| *line = line.trim_end().to_string());
         }
     }
 
     lines.iter().for_each(|line| println!("{line}"));
+
+    ExitCode::SUCCESS
 }
