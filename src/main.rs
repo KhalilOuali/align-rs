@@ -1,4 +1,4 @@
-use std::{io::stdin, process::ExitCode};
+use std::io::stdin;
 
 use align::*;
 
@@ -69,13 +69,10 @@ fn get_terimnal_width() -> Option<usize> {
 }
 
 fn get_text() -> Vec<String> {
-    stdin()
-        .lines()
-        .map(|line| line.expect("Read error: "))
-        .collect()
+    stdin().lines().map(|line| line.unwrap()).collect()
 }
 
-fn main() -> ExitCode {
+fn main() -> Result<(), &'static str> {
     let mut args = Args::parse();
     if let Some(wh) = args.both {
         args.align = wh.clone();
@@ -87,8 +84,7 @@ fn main() -> ExitCode {
         None => match get_terimnal_width() {
             Some(term_width) => Some((term_width, args.wrap)),
             None => {
-                eprintln!("Error: couldn't get terminal width.");
-                return ExitCode::FAILURE;
+                return Err("couldn't get terminal width");
             }
         },
         Some(0) => None,
@@ -102,8 +98,7 @@ fn main() -> ExitCode {
         if let Err(Error::InsufficientColumns) =
             lines.align_text(Where::Center, cols_wrap, args.trim, args.bias, args.keep)
         {
-            eprintln!("Error: Insufficient number of columns.");
-            return ExitCode::FAILURE;
+            return Err("not enough columns");
         }
     } else {
         // justify
@@ -115,8 +110,7 @@ fn main() -> ExitCode {
         if let Err(Error::InsufficientColumns) =
             lines.align_text(args.align, cols_wrap, false, args.bias, args.keep)
         {
-            eprintln!("Error: Insufficient number of columns.");
-            return ExitCode::FAILURE;
+            return Err("not enough columns");
         }
 
         if !args.keep {
@@ -129,5 +123,5 @@ fn main() -> ExitCode {
 
     lines.iter().for_each(|line| println!("{line}"));
 
-    ExitCode::SUCCESS
+    Ok(())
 }
