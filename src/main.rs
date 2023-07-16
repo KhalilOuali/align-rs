@@ -7,41 +7,41 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(author, version, long_about = "None")]
 #[command(
-    about = "Aligns and justifies text within the terminal (or a specified number of columns)."
+    about = "Aligns a block of text within the terminal (or a specified number of columns)."
 )]
 struct Args {
-    /// Where to align the text.
+    /// Where to align the block of text.
     #[arg(
         value_enum,
         short,
         long,
         default_value_t,
         ignore_case = true,
-        conflicts_with = "both"
+        conflicts_with = "align"
     )]
-    align: Where,
+    outer: Where,
 
-    /// Where to justify the text.
+    /// Where to align text inside the block.
     #[arg(
         value_enum,
         short,
         long,
         default_value_t,
         ignore_case = true,
-        conflicts_with = "both"
+        conflicts_with = "align"
     )]
-    justify: Where,
+    inner: Where,
 
     /// Shorthand for specifiying both.
     #[arg(
         value_enum,
+        short,
         long,
-        long = "aj",
         ignore_case = true,
-        conflicts_with = "align",
-        conflicts_with = "justify"
+        conflicts_with = "outer",
+        conflicts_with = "inner"
     )]
-    both: Option<Where>,
+    align: Option<Where>,
 
     /// Number of columns. Takes text's width if 0, terminal's width if unspecified.
     #[arg(short, long)]
@@ -51,7 +51,7 @@ struct Args {
     #[arg(short, long, action)]
     wrap: bool,
 
-    /// Trim the spaces around the lines before justifying.
+    /// Trim the spaces around the lines before aligning.
     #[arg(short, long, action)]
     trim: bool,
 
@@ -74,9 +74,9 @@ fn get_text() -> Vec<String> {
 
 fn main() -> Result<(), &'static str> {
     let mut args = Args::parse();
-    if let Some(wh) = args.both {
-        args.align = wh.clone();
-        args.justify = wh.clone();
+    if let Some(wh) = args.align {
+        args.outer = wh.clone();
+        args.inner = wh.clone();
     }
 
     // deduce final number of columns depending on args
@@ -93,7 +93,7 @@ fn main() -> Result<(), &'static str> {
 
     let mut lines = get_text();
 
-    if args.align == Where::Center && args.justify == Where::Center {
+    if args.outer == Where::Center && args.inner == Where::Center {
         // center completely
         if let Err(Error::InsufficientColumns) =
             lines.align_text(Where::Center, cols_wrap, args.trim, args.bias, args.keep)
@@ -101,20 +101,20 @@ fn main() -> Result<(), &'static str> {
             return Err("not enough columns");
         }
     } else {
-        // justify
+        // inner align
         lines
-            .align_text(args.justify, None, args.trim, args.bias, true)
+            .align_text(args.inner, None, args.trim, args.bias, true)
             .unwrap();
 
-        // align
+        // outer align
         if let Err(Error::InsufficientColumns) =
-            lines.align_text(args.align, cols_wrap, false, args.bias, args.keep)
+            lines.align_text(args.outer, cols_wrap, false, args.bias, args.keep)
         {
             return Err("not enough columns");
         }
 
         if !args.keep {
-            // remove spaces introduced by justify
+            // remove spaces introduced in inner align
             lines
                 .iter_mut()
                 .for_each(|line| *line = line.trim_end().to_string());
