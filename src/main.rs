@@ -6,9 +6,7 @@ use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(author, version, long_about = "None")]
-#[command(
-    about = "Aligns a block of text within the terminal (or a specified number of columns)."
-)]
+#[command(about = "Aligns a block of text within the terminal (or a specified number of columns).")]
 struct Args {
     /// Where to align the block of text.
     #[arg(
@@ -64,54 +62,50 @@ struct Args {
     bias: Bias,
 }
 
-fn get_terimnal_width() -> Option<usize> {
-    term_size::dimensions().map(|(width, _height)| width)
+fn get_terimnal_width() -> Result<usize, String> {
+    term_size::dimensions()
+        .map(|(width, _height)| width)
+        .ok_or("couldn't get terminal width".to_string())
 }
 
-fn get_text() -> Vec<String> {
-    stdin().lines().map(|line| line.unwrap()).collect()
+fn get_text() -> Result<Vec<String>, String> {
+    stdin()
+        .lines()
+        .map(|line| line.map_err(|e| e.to_string()))
+        .collect()
 }
 
-fn main() -> Result<(), &'static str> {
+fn main() -> Result<(), String> {
     let mut args = Args::parse();
     if let Some(wh) = args.align {
         args.outer = wh.clone();
-        args.inner = wh.clone();
+        args.inner = wh;
     }
 
     // deduce final number of columns depending on args
     let cols_wrap = match args.columns {
-        None => match get_terimnal_width() {
-            Some(term_width) => Some((term_width, args.wrap)),
-            None => {
-                return Err("couldn't get terminal width");
-            }
-        },
+        None => Some((get_terimnal_width()?, args.wrap)),
         Some(0) => None,
         Some(c) => Some((c, args.wrap)),
     };
 
-    let mut lines = get_text();
+    let mut lines = get_text()?;
 
     if args.outer == Where::Center && args.inner == Where::Center {
         // center completely
-        if let Err(Error::InsufficientColumns) =
-            lines.align_text(Where::Center, cols_wrap, args.trim, args.bias, args.keep)
-        {
-            return Err("not enough columns");
-        }
+        lines = lines
+            .align_text(Where::Center, cols_wrap, args.trim, args.bias, args.keep)
+            .map_err(|e| e.to_string())?;
     } else {
         // inner align
-        lines
+        lines = lines
             .align_text(args.inner, None, args.trim, args.bias, true)
-            .unwrap();
+            .map_err(|e| e.to_string())?;
 
         // outer align
-        if let Err(Error::InsufficientColumns) =
-            lines.align_text(args.outer, cols_wrap, false, args.bias, args.keep)
-        {
-            return Err("not enough columns");
-        }
+        lines = lines
+            .align_text(args.outer, cols_wrap, false, args.bias, args.keep)
+            .map_err(|e| e.to_string())?;
 
         if !args.keep {
             // remove spaces introduced in inner align
@@ -121,7 +115,9 @@ fn main() -> Result<(), &'static str> {
         }
     }
 
-    lines.iter().for_each(|line| println!("{line}"));
+    for line in lines {
+        println!("{line}");
+    }
 
     Ok(())
 }

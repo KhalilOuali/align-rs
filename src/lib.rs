@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use clap::ValueEnum;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,18 +110,29 @@ pub enum Error {
     UnknownError(&'static str),
 }
 
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::InsufficientColumns => write!(f, "text can't fit, not enough columns"),
+            Error::UnknownError(e) => write!(f, "unexpected, {e}"),
+        }
+    }
+}
+
 /// The trait which defines the align_text() function.
 /// No defaut implementation.
 /// Implemented for [`Vec<String>`].
 pub trait Align {
     fn align_text(
-        &mut self,
+        &self,
         align: Where,
         columns: Option<(usize, bool)>,
         trim: bool,
         bias: Bias,
         keep_spaces: bool,
-    ) -> Result<(), Error>;
+    ) -> Result<Self, Error>
+    where
+        Self: Sized;
 }
 
 impl Align for Vec<String> {
@@ -140,32 +153,32 @@ impl Align for Vec<String> {
     ///
     /// # Examples
     /// ```
-    /// use align::{Align, Where, Bias};
-    ///
-    /// let mut lines = vec![
+    /// use align::{Align, Bias, Where};
+    /// let text = vec![
     ///     "Hello           ".to_string(),
     ///     "            World!".to_string(),
     ///     "   This should center-align     ".to_string(),
     /// ];
-    /// lines.align_text(Where::Center, Some((30, false)), true, Bias::Right, true).unwrap();
-    ///
-    /// assert_eq!(lines[0], "             Hello            ");
-    /// assert_eq!(lines[1], "            World!            ");
-    /// assert_eq!(lines[2], "   This should center-align   ");
+    /// let aligned = text
+    ///     .align_text(Where::Center, Some((30, false)), true, Bias::Right, true)
+    ///     .unwrap();
+    /// assert_eq!(aligned[0], "             Hello            ");
+    /// assert_eq!(aligned[1], "            World!            ");
+    /// assert_eq!(aligned[2], "   This should center-align   ");
     /// ```
     fn align_text(
-        &mut self,
+        &self,
         align: Where,
         columns: Option<(usize, bool)>,
         trim: bool,
         bias: Bias,
         keep_spaces: bool,
-    ) -> Result<(), Error> {
-        if self.is_empty() {
-            return Ok(());
-        }
-
+    ) -> Result<Vec<String>, Error> {
         let mut lines = self.clone();
+
+        if lines.is_empty() {
+            return Ok(lines);
+        }
 
         if trim {
             lines
@@ -221,8 +234,7 @@ impl Align for Vec<String> {
             }
         }
 
-        *self = lines;
-        Ok(())
+        Ok(lines)
     }
 }
 
@@ -243,36 +255,41 @@ impl Align for String {
     ///
     /// # Examples
     /// ```
-    /// use align::{Align, Where, Bias};
-    ///
+    /// use align::{Align, Bias, Where};
     /// let mut text = [
     ///     "Hello           ",
     ///     "            World!",
     ///     "   This should center-align     ",
-    /// ].join("\n");
-    ///
-    /// text.align_text(Where::Center, Some((30, false)), true, Bias::Right, true)
+    /// ]
+    /// .join("\n");
+    /// let aligned = text
+    ///     .align_text(Where::Center, Some((30, false)), true, Bias::Right, true)
     ///     .unwrap();
-    ///
     /// assert_eq!(
-    ///     text, [
+    ///     aligned,
+    ///     [
     ///         "             Hello            ",
     ///         "            World!            ",
     ///         "   This should center-align   "
-    ///     ].join("\n")
+    ///     ]
+    ///     .join("\n")
     /// );
     /// ```
     fn align_text(
-        &mut self,
+        &self,
         align: Where,
         columns: Option<(usize, bool)>,
         trim: bool,
         bias: Bias,
         keep_spaces: bool,
-    ) -> Result<(), Error> {
-        let mut lines: Vec<String> = self.lines().map(|line| line.to_string()).collect();
-        lines.align_text(align, columns, trim, bias, keep_spaces)?;
-        *self = lines.join("\n");
-        Ok(())
+    ) -> Result<String, Error> {
+        let aligned = self
+            .lines()
+            .map(|line| line.to_string())
+            .collect::<Vec<String>>()
+            .align_text(align, columns, trim, bias, keep_spaces)?
+            .join("\n");
+
+        Ok(aligned)
     }
 }
