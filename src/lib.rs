@@ -99,9 +99,11 @@ impl From<Bias> for usize {
 /// # Example
 /// * Passing an insufficient number of columns:
 /// ```
-/// use align::{Align, Where, Bias, Error};
+/// use align_text::{Align, Where, Bias, Error};
+/// 
 /// let mut lines = vec!["0123456789".to_string()];
 /// let result = lines.align_text(Where::Center, Some((3, false)), true, Bias::Right, true);
+/// 
 /// assert_eq!(result, Err(Error::InsufficientColumns));
 /// ```
 #[derive(Debug, PartialEq, Eq)]
@@ -153,7 +155,7 @@ impl Align for Vec<String> {
     ///
     /// # Examples
     /// ```
-    /// use align::{Align, Bias, Where};
+    /// use align_text::{Align, Bias, Where};
     /// let text = vec![
     ///     "Hello           ".to_string(),
     ///     "            World!".to_string(),
@@ -255,7 +257,7 @@ impl Align for String {
     ///
     /// # Examples
     /// ```
-    /// use align::{Align, Bias, Where};
+    /// use align_text::{Align, Bias, Where};
     /// let mut text = [
     ///     "Hello           ",
     ///     "            World!",

@@ -1,6 +1,6 @@
 use std::io::stdin;
 
-use align::*;
+use align_text::*;
 
 use clap::Parser;
 
