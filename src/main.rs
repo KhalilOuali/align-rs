@@ -5,7 +5,7 @@ use align_text::*;
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[command(author, version, long_about = "None")]
+#[command(author, version, long_about = None)]
 #[command(about = "Aligns a block of text within the terminal (or a specified number of columns).")]
 struct Args {
     /// Where to align the block of text.
