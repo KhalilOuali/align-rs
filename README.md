@@ -1,5 +1,7 @@
 # align: a command line utility for aligning text.
 
+[![Crates.io](https://img.shields.io/crates/v/align_text)](https://crates.io/crates/align_text)
+
 ## ⭐ Overview
 
 Aligns text within the terminal (or a specified number of columns).  
