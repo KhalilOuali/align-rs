@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+#[cfg(feature = "clap_arg")]
 use clap::ValueEnum;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,6 +16,7 @@ impl Default for Where {
     }
 }
 
+#[cfg(feature = "clap_arg")]
 impl ValueEnum for Where {
     fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
         let input = if ignore_case {
@@ -56,6 +58,7 @@ impl Default for Bias {
     }
 }
 
+#[cfg(feature = "clap_arg")]
 impl ValueEnum for Bias {
     fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
         let input = if ignore_case {

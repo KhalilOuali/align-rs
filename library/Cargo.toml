@@ -1,0 +1,12 @@
+[package]
+name = "align_text"
+version = "0.1.0"
+edition = "2021"
+authors = ["Khalil Ouali"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+clap = { version = "4.3.12", optional = true }
+
+[features]
+clap_arg = ["clap"]
